@@ -16,7 +16,7 @@
 | -------- | ---- | --------------------- | ------ | ---- |
 | file_up  | file | 需要上传的图片文件    | 必要   | 格式仅支持 `jpg` `png` `gif` |
 | category | string | 图片类型            | 不必要   | daily: 日常 (动态) (默认)<br />draw: 绘画 (画友)<br />cos: 摄影 (COSPLAY) |
-| biz      | string |                    | 不必要 | `new_dyn` |
+| biz      | string | 业务标识            | 不必要 | `new_dyn`：动态<br />`article`：专栏正文图片与自定义封面（见 [专栏投稿](../article/creation.md)） |
 | csrf     | string | CSRF Token (即 Cookie 中 bili_jct) | 必要   |    |
 
 **JSON 回复:**

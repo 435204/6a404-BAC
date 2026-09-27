@@ -168,6 +168,7 @@ B站 API 采用 C/S 结构，大多数接口为 REST API 和 gRPC，少部分接
     - [X] [基本信息](docs/article/info.md)
     - [X] [点赞 & 投币 & 收藏 & 分享](docs/article/action.md)
     - [X] [文集基本信息](docs/article/articles.md)
+    - [x] [投稿 & 编辑](docs/article/creation.md)
 - [ ] [动态](docs/dynamic)
     - [ ] [获取动态列表](docs/dynamic/all.md)
     - [ ] [用户空间动态](docs/dynamic/space.md)
