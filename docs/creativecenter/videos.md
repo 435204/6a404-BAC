@@ -471,6 +471,101 @@ curl -G "https://member.bilibili.com/x2/creative/web/archives/sp" \
 
 </details>
 
+## 获取稿件编辑信息
+
+> https://member.bilibili.com/x/vupre/web/archive/view
+
+*请求方式: GET*
+
+认证方式: Cookie (SESSDATA)
+
+获取本人稿件在投稿编辑页使用的信息，包括未公开的定时稿件。可用于核对投稿参数是否保存成功。
+
+**URL参数:**
+
+| 参数名 | 类型 | 内容 | 必要性 | 备注 |
+| ------ | ---- | ---- | ------ | ---- |
+| aid | num | 稿件 avid | 必要 | |
+
+**JSON回复:**
+
+根对象:
+
+| 字段 | 类型 | 内容 | 备注 |
+| ---- | ---- | ---- | ---- |
+| code | num | 返回值 | 0: 成功 |
+| message | str | 错误信息 | |
+| data | obj | 信息本体 | 以下仅列出部分字段 |
+
+`data` 对象:
+
+| 字段 | 类型 | 内容 | 备注 |
+| ---- | ---- | ---- | ---- |
+| archive | obj | 稿件信息 | |
+| videos | array | 分 P 信息 | |
+| in_season | bool | 是否加入合集 | |
+| watermark | obj | 本稿件水印设置 | `state=0`: 关闭，`state=1`: 开启 |
+
+`archive` 对象:
+
+| 字段 | 类型 | 内容 | 备注 |
+| ---- | ---- | ---- | ---- |
+| aid | num | 稿件 avid | |
+| bvid | str | 稿件 bvid | |
+| title | str | 稿件标题 | |
+| desc | str | 简介 | |
+| cover | str | 16:9 封面 URL | |
+| cover43 | str | 4:3 封面 URL | |
+| copyright | num | 版权类型 | |
+| tid | num | 分区 ID | |
+| human_type2 | obj | 新分区信息 | 包含 `id`、`name`；投稿时传数值 ID |
+| tag | str | 标签 | 用半角逗号分隔 |
+| topic_id | num | 话题 ID | |
+| mission_id | num | 活动任务 ID | |
+| dtime | num | 定时发布时间 | UNIX 秒时间戳 |
+| state | num | 稿件状态 | -40: 通过审核，等待发布 |
+| state_desc | str | 稿件状态描述 | |
+| creation_statement | obj | 已选创作声明 | 包含 `id`、`content` |
+
+`videos` 数组中的对象含 `cid`、`filename`、`title` 等分 P 字段。
+
+注: 定时稿件通过审核后仍为 `state=-40`，到 `dtime` 才公开，判断状态时结合 `state_desc`。
+
+**示例:**
+
+```shell
+curl -G 'https://member.bilibili.com/x/vupre/web/archive/view' \
+--data-urlencode 'aid=123456' \
+-b 'SESSDATA=xxx'
+```
+
+## 删除视频稿件
+
+> https://member.bilibili.com/x/web/archive/delete
+
+*请求方式: POST*
+
+认证方式: Cookie (SESSDATA)
+
+参数来自现行稿件管理页前端，删除请求尚未完整测试。旧路径 `/x/vu/web/del` 已返回 HTTP 404。
+
+删除前网页先请求 `GET /x/geetest/pre` 完成极验验证，还可能追加短信验证。
+
+**正文参数 (application/x-www-form-urlencoded):**
+
+| 参数名 | 类型 | 内容 | 必要性 | 备注 |
+| ------ | ---- | ---- | ------ | ---- |
+| aid | num | 稿件 avid | 必要 | |
+| geetest_challenge | str | 极验 challenge | 必要 | |
+| geetest_validate | str | 极验 validate | 必要 | |
+| geetest_seccode | str | 极验 seccode | 必要 | |
+| success | num | 极验初始化状态 | 必要 | 取自初始化响应 |
+| sms_code | str | 短信验证码 | 非必要 | 按验证流程要求填写 |
+
+**JSON回复:**
+
+待补充。
+
 ## 视频基础信息
 
 > https://member.bilibili.com/x/web/archive/videos

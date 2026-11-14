@@ -16,8 +16,8 @@
 | ------ | ---- | --------- | ----------- | ----------------- |
 | pn     | num  | 页码      | 必要        | 默认为 1           |
 | ps     | num  | 每页数量  | 必要        | 默认为 30          |
-| order  | str  | 排序方式  | 不必要        | 创建时间: ctime<br />修改时间: mtime |
-| sort   | str  | 排序方式  | 不必要        | 创建时间: asc<br />修改时间: desc |
+| order  | str  | 排序方向  | 不必要        | asc: 升序<br />desc: 降序 |
+| sort   | str  | 排序字段  | 不必要        | ctime: 创建时间<br />mtime: 修改时间 |
 | draft  | num  | 1        | 不必要        | 作用尚不明确       |
 
 **JSON回复:**
@@ -347,9 +347,51 @@ curl -G 'https://member.bilibili.com/x2/creative/web/seasons' \
 
 </details>
 
+## 获取合集信息
+
+> https://member.bilibili.com/x2/creative/web/season
+
+*请求方式: GET*
+
+认证方式: Cookie (SESSDATA)
+
+**URL参数:**
+
+| 参数名 | 类型 | 内容 | 必要性 | 备注 |
+| ------ | ---- | ---- | ------ | ---- |
+| id | num | 合集 ID | 必要 | |
+
+**JSON回复:**
+
+根对象:
+
+| 字段 | 类型 | 内容 | 备注 |
+| ---- | ---- | ---- | ---- |
+| code | num | 返回值 | 0: 成功 |
+| message | str | 错误信息 | |
+| ttl | num | 1 | |
+| data | obj | 信息本体 | |
+
+`data` 对象:
+
+| 字段 | 类型 | 内容 | 备注 |
+| ---- | ---- | ---- | ---- |
+| season | obj | 合集信息 | 字段参见[获取合集列表](#获取合集列表) |
+| sections | obj | 小节信息 | 包含 `sections` 数组和 `total` |
+
+本接口不返回小节中的视频列表，需通过[获取合集小节中的视频](#获取合集小节中的视频)获取。
+
+**示例:**
+
+```shell
+curl -G 'https://member.bilibili.com/x2/creative/web/season' \
+--data-urlencode 'id=123456' \
+-b 'SESSDATA=xxx'
+```
+
 ## 创建合集
 
-> ttps://member.bilibili.com/x2/creative/web/season/add
+> https://member.bilibili.com/x2/creative/web/season/add
 
 *请求方式: POST*
 
@@ -424,10 +466,10 @@ curl -X POST 'https://member.bilibili.com/x2/creative/web/season/add' \
 
 | 参数名 | 类型 | 内容     | 必要性 | 备注 |
 | ------ | ---- | -------- | ------ | ---- |
-| episode | array | 视频列表 | 必要   |      |
-| section_id | num | 合集小节 ID | 必要   |      |
+| episodes | array | 视频列表 | 必要   |      |
+| sectionId | num | 合集小节 ID | 必要   |      |
 
-`episode` 数组中的对象:
+`episodes` 数组中的对象:
 
 | 参数名 | 类型 | 内容 | 必要性 | 备注 |
 | ----- | --- | ---- | ----- | --- |
@@ -435,6 +477,12 @@ curl -X POST 'https://member.bilibili.com/x2/creative/web/season/add' \
 | cid | num | 稿件 cid | 必要 | |
 | title | str | 合集内单集标题 | 必要 | |
 | charging_pay | num | 0 | 不必要 | 作用尚不明确 |
+| member_first | num | 会员抢先看? | 非必要 | 普通视频传 0 |
+| limited_free | bool | 限时免费? | 非必要 | 普通视频传 false |
+
+`title` 为合集内的单集标题，不会修改原稿件标题。请求成功后可重新获取小节列表，以 `aid`、`cid` 查找新增条目的 `id`，供编辑和移出时使用。
+
+尚未公开的定时稿件也可加入合集，此时该稿件仅在管理端可见，公开的合集视频列表不返回该条目。
 
 **JSON回复:**
 
@@ -521,14 +569,16 @@ curl -X POST --url 'https://member.bilibili.com/x2/creative/web/season/section/e
 | id     | num  | 小节 ID   | 必要   |      |
 | seasonId | num | 合集 ID | 必要   |      |
 | title  | str  | 小节标题 | 必要   |      |
-| type   | num  | 1        | 必要   |      |
+| type   | num  | 小节类型 | 必要   | 沿用小节查询结果，不固定为 1 |
 
 `sorts` 数组中的对象:
 
 | 参数名 | 类型 | 内容     | 必要性 | 备注 |
 | ------ | ---- | -------- | ------ | ---- |
-| id     | num  | 合集内视频 ID   | 必要   |      |
-| order  | num  | 排序位置 | 必要   |      |
+| id     | num  | 合集内视频 ID   | 必要   | 即 `episodes[].id`，不是 aid 或 cid |
+| sort   | num  | 排序位置 | 必要   | 按目标顺序填写 |
+
+`sorts` 传入该小节的完整条目列表。查询结果中的 `order` 不一定从 1 连续递增；恢复原排序时可以将原 `order` 填入对应条目的 `sort`。
 
 **JSON回复:**
 
@@ -743,7 +793,9 @@ curl -X POST 'https://member.bilibili.com/x2/creative/web/season/del' \
 
 | 参数名 | 类型 | 内容 | 必要性 | 备注 |
 | ----- | --- | ---- | ----- | --- |
-| id    | num | 合集 ID | 必要 |    |
+| id    | num | 合集小节 ID | 必要 | 不是合集 ID |
+
+参数错误时仍返回 `code=0`，此时 `section.id` 为 0。
 
 **JSON 回复:**
 
@@ -768,8 +820,8 @@ curl -X POST 'https://member.bilibili.com/x2/creative/web/season/del' \
 | id        | num  | 小节 ID      |      |
 | type      | num  | 小节类型     |      |
 | seasonId  | num  | 合集 ID      |      |
-| title     | str  | 小结标题     |      |
-| order     | str  | 排序编号?    |      |
+| title     | str  | 小节标题     |      |
+| order     | num  | 排序编号     |      |
 | isEnd     | num  | 是否已完结?  | 0: 未完结 |
 | state     | num  | 合集状态? | 0: 正常显示<br />-6: 正在审核 |
 | partState | num  | 合集分段状态? | 0 |
@@ -787,16 +839,16 @@ curl -X POST 'https://member.bilibili.com/x2/creative/web/season/del' \
 
 | 字段      | 类型 | 内容         | 备注 |
 | --------- | ---- | ------------ | ---- |
-| id        | num  | 合集内视频 ID |      |
-| title     | str  | 视频标题      |      |
+| id        | num  | 合集内视频 ID | 编辑、排序和移出时使用，不是 aid 或 cid |
+| title     | str  | 合集内单集标题 | 可与原稿件标题不同 |
 | aid       | num  | 视频 aid     |      |
 | bvid      | str  | 视频 bvid    |      |
 | cid       | num  | 视频 cid     |      |
 | seasonId  | num  | 合集 ID       |      |
 | sectionId | num  | 小节 ID       |      |
-| order     | num  | 排序编号      |      |
-| videoTitle | str | 视频标题 |      |
-| archiveTitle | str | 看起来也是标题 |      |
+| order     | num  | 排序编号      | 不一定从 1 连续递增 |
+| videoTitle | str | 分 P 标题 | 可能为空 |
+| archiveTitle | str | 原稿件标题 |      |
 | archiveState | num | 0 |      |
 | rejectReason | str | 拒绝理由?    |      |
 | state     | num  | 0 |      |
@@ -915,6 +967,118 @@ curl -G --url 'https://member.bilibili.com/x2/creative/web/season/section' \
 ```
 
 </details>
+
+## 编辑合集内单集标题与排序
+
+> https://member.bilibili.com/x2/creative/web/season/section/episode/edit
+
+*请求方式: POST*
+
+认证方式: Cookie (SESSDATA)
+
+只修改合集内的单集标题和排序，不修改原稿件标题。
+
+**URL参数:**
+
+| 参数名 | 类型 | 内容 | 必要性 | 备注 |
+| ------ | ---- | ---- | ------ | ---- |
+| csrf | str | CSRF Token (即 Cookies 中 bili_jct) | 必要 | |
+
+**正文参数 (application/json):**
+
+以下为现行网页提交的完整请求结构，各字段能否省略未逐项验证。
+
+| 参数名 | 类型 | 内容 | 必要性 | 备注 |
+| ------ | ---- | ---- | ------ | ---- |
+| id | num | 合集内视频 ID | 必要 | `episodes[].id` |
+| title | str | 合集内单集标题 | 必要 | |
+| aid | num | 视频 aid | 必要 | |
+| cid | num | 分 P cid | 必要 | |
+| seasonId | num | 合集 ID | 必要 | |
+| sectionId | num | 合集小节 ID | 必要 | |
+| order | num | 目标位置 | 必要 | 从 1 开始 |
+| sorts | array | 小节内完整排序列表 | 必要 | 包含所有条目 |
+
+`sorts` 数组中的对象:
+
+| 参数名 | 类型 | 内容 | 必要性 | 备注 |
+| ------ | ---- | ---- | ------ | ---- |
+| id | num | 合集内视频 ID | 必要 | |
+| sort | num | 排序位置 | 必要 | 从 1 开始 |
+
+仅修改标题时保留当前位置和排序列表；修改位置时按目标顺序生成完整 `sorts`。
+
+**JSON回复:**
+
+| 字段 | 类型 | 内容 | 备注 |
+| ---- | ---- | ---- | ---- |
+| code | num | 返回值 | 0: 成功<br />256000: 合集编辑过于频繁 |
+| message | str | 错误信息 | |
+| ttl | num | 1 | |
+
+连续修改过于频繁时返回 256000，网页端同样会出现。
+
+**示例:**
+
+假设小节中有两个条目，将 `100002` 移到第 1 位并修改标题。请求正文保存为 `payload.json`:
+
+```json
+{
+  "id": 100002,
+  "title": "示例单集标题",
+  "aid": 123456,
+  "cid": 654321,
+  "seasonId": 200001,
+  "sectionId": 300001,
+  "order": 1,
+  "sorts": [
+    { "id": 100002, "sort": 1 },
+    { "id": 100001, "sort": 2 }
+  ]
+}
+```
+
+```shell
+curl -X POST 'https://member.bilibili.com/x2/creative/web/season/section/episode/edit' \
+--url-query 'csrf=xxx' \
+-H 'Content-Type: application/json' \
+--data-binary @payload.json \
+-b 'SESSDATA=xxx; bili_jct=xxx'
+```
+
+## 从合集移出单集
+
+> https://member.bilibili.com/x2/creative/web/season/section/episode/del
+
+*请求方式: POST*
+
+认证方式: Cookie (SESSDATA)
+
+移出合集条目，不删除原稿件。
+
+**正文参数 (application/x-www-form-urlencoded):**
+
+| 参数名 | 类型 | 内容 | 必要性 | 备注 |
+| ------ | ---- | ---- | ------ | ---- |
+| id | num | 合集内视频 ID | 必要 | `episodes[].id`，不是 aid |
+| csrf | str | CSRF Token (即 Cookies 中 bili_jct) | 必要 | |
+
+**JSON回复:**
+
+| 字段 | 类型 | 内容 | 备注 |
+| ---- | ---- | ---- | ---- |
+| code | num | 返回值 | 0: 成功 |
+| message | str | 错误信息 | |
+| ttl | num | 1 | |
+
+**示例:**
+
+```shell
+curl -X POST 'https://member.bilibili.com/x2/creative/web/season/section/episode/del' \
+--data-urlencode 'id=100002' \
+--data-urlencode 'csrf=xxx' \
+-b 'SESSDATA=xxx; bili_jct=xxx'
+```
 
 ## 编辑投稿视频合集
 

@@ -21,7 +21,7 @@
 | 参数名 | 类型 | 内容     | 必要性 | 备注 |
 | ------ | ---- | -------- | ------ | ---- |
 | csrf   | str  | CSRF Token (位于 Cookie 中 bili_jct) | 必要   |      |
-| cover  | base64 | 视频封面 | 必要   | 经过 base64 编码的图片数据 |
+| cover  | str | 视频封面 | 必要   | Data URL，如 `data:image/jpeg;base64,...` |
 
 **JSON回复:**
 
@@ -74,6 +74,71 @@ JavaScript (Node.js) 请求[示例](https://gist.github.com/SessionHu/5e47a3a1a3
 ```
 
 </details>
+
+## 获取投稿预置信息
+
+> https://member.bilibili.com/x/vupre/web/archive/pre
+
+*请求方式: GET*
+
+认证方式: Cookie (SESSDATA)
+
+获取当前账号的投稿配置、定时范围、创作声明选项及默认水印设置。
+
+**JSON回复:**
+
+根对象:
+
+| 字段 | 类型 | 内容 | 备注 |
+| ---- | ---- | ---- | ---- |
+| code | num | 返回值 | 0: 成功<br />-101: 账号未登录 |
+| message | str | 错误信息 | |
+| data | obj | 信息本体 | 以下仅列出部分字段 |
+
+`data` 对象:
+
+| 字段 | 类型 | 内容 | 备注 |
+| ---- | ---- | ---- | ---- |
+| myinfo | obj | 账号投稿配置 | 包含定时范围 |
+| watermark | obj | 账号默认水印设置 | `state` 为开启状态 |
+| neutral_mark | obj | 创作声明配置 | 提交字段为 `creation_statement`，不是 `neutral_mark` |
+
+`myinfo` 对象中的定时字段:
+
+| 字段 | 类型 | 内容 | 备注 |
+| ---- | ---- | ---- | ---- |
+| deftime | num | 最早可发布时间 | UNIX 秒时间戳，绝对时间 |
+| deftime_end | num | 最晚可发布时间 | UNIX 秒时间戳，绝对时间 |
+| deftime_msg | str | 定时范围提示 | |
+
+定时范围以本接口返回为准，测试时为最早 5 分钟后、最晚 15 天内；网页初始化的 4 小时是前端预设值，不是实际下限。
+
+`neutral_mark` 对象中的字段:
+
+| 字段 | 类型 | 内容 | 备注 |
+| ---- | ---- | ---- | ---- |
+| tips | str | 创作声明提示 | |
+| mark_list | array | 可选声明列表 | 每项包含 `id`、`content` |
+
+`mark_list` 中的已知选项:
+
+| id | content |
+| --- | ------- |
+| -1 | 内容无需标注 |
+| 1 | 含AI生成内容 |
+| 2 | 含虚构演绎内容 |
+| 3 | 内容含营销信息 |
+| 4 | 个人观点，仅供参考 |
+| -2 | 内容为转载 |
+
+选项可能调整，以 `mark_list` 实际返回为准。
+
+**示例:**
+
+```shell
+curl 'https://member.bilibili.com/x/vupre/web/archive/pre' \
+-b 'SESSDATA=xxx'
+```
 
 ## 获取上传模板列表
 
@@ -227,6 +292,8 @@ curl -X POST "https://member.bilibili.com/x/vupre/web/tpl/update" \
 *请求方式: GET*
 
 认证方式：Cookie(SESSDATA)
+
+注: `type_id=17` 现已返回 20003，网页改用 `/x/vupre/web/topic/type/v2`（尚未测试）；[话题搜索](#话题搜索)仍可使用。
 
 **URL参数:**
 
@@ -417,6 +484,48 @@ curl -G "https://member.bilibili.com/x/vupre/web/topic/search" \
 ```
 
 </details>
+
+## 检查话题活动
+
+> https://member.bilibili.com/x/vupre/web/topic/mission/check
+
+*请求方式: GET*
+
+认证方式: Cookie (SESSDATA)
+
+选择话题后查询关联活动。参加活动时，投稿请求需携带对应的 `topic_id`、`mission_id` 和活动标签。
+
+**URL参数:**
+
+| 参数名 | 类型 | 内容 | 必要性 | 备注 |
+| ------ | ---- | ---- | ------ | ---- |
+| topic_id | num | 话题 ID | 必要 | 从[话题搜索](#话题搜索)结果获取 |
+
+**JSON回复:**
+
+| 字段 | 类型 | 内容 | 备注 |
+| ---- | ---- | ---- | ---- |
+| code | num | 返回值 | 0: 成功 |
+| message | str | 错误信息 | |
+| data | obj | 活动信息 | |
+
+`data` 对象:
+
+| 字段 | 类型 | 内容 | 备注 |
+| ---- | ---- | ---- | ---- |
+| content | str | 提示信息 | |
+| mission_id | num | 关联活动任务 ID | 网页将此值用于投稿请求 |
+| state | num | 状态? | 取值含义待补充 |
+
+活动名称、ID 与有效期可能变化，投稿前需重新查询。
+
+**示例:**
+
+```shell
+curl -G 'https://member.bilibili.com/x/vupre/web/topic/mission/check' \
+--data-urlencode 'topic_id=123456' \
+-b 'SESSDATA=xxx'
+```
 
 ## 标签可用性检查
 
@@ -924,22 +1033,22 @@ curl -G 'https://member.bilibili.com/x/vupre/web/tag/recommend' \
 | 参数名 | 类型 | 内容     | 必要性 | 备注 |
 | ------ | ---- | -------- | ------ | ---- |
 | videos | array | 视频信息 | 必要   | 若为分 P 视频, 请注意数组元素顺序 |
-| cover  | str  | 视频封面 URL | 非必要   | 如果不传会自动取封面，参见[上传视频封面](#上传视频封面) |
+| cover  | str  | 视频封面 URL (比例为 16:9) | 非必要   | 如果不传会自动取封面，参见[上传封面](#上传封面) |
 | cover43 | str  | 视频封面 URL (比例为 4:3) | 非必要   | 可为空 |
 | title  | str  | 视频标题 | 必要   | 最多 80 字 |
-| copyright | num  | 1: 自制<br />2: 转载 | 必要   |      |
+| copyright | num  | 版权类型 | 必要   | 1: 自制<br />2: 转载<br />3: 未勾选自制声明 |
 | tid    | num  | 分区 ID | 必要   | Web端此参数已无法手动设置，参数值为从[预测稿件类型](#预测稿件类型)中获取第一个固定id     |
 | human_type2 | num  | 新分区ID | 非必要| 从 [新分区ID](#获取新分区ID) 获取 |
 | tag    | str  | 视频标签 | 必要   | 多个标签用 `,` 分隔, 最多 10 个 |
 | desc_format_id | num  | 简介格式 ID? | 必要   | 9999: 纯文本 |
 | desc   | str  | 视频简介 | 非必要   | 最多 2000 字 |
-| desc_v2   | str  | 视频简介额外信息 | 非必要   | 比如有艾特操作时传递，见备注 |
+| desc_v2   | array | 视频简介额外信息 | 非必要   | 纯文本也可使用 `type=1`，见备注 |
 | recreate | num  | 是否允许二创 | 必要   | -1: 允许(默认)<br />1: 不允许 |
 | dynamic | str  | 粉丝动态 | 必要   |      |
 | interactive | num  | 互动视频? | 必要   | 0: 否 |
 | act_reserve_create | num  | 活动预约? | 必要   | 0: 否 |
-| no_disturbance | num  | 是否推送到动态| 必要   | 0：不推送，1：推送|
-| no_reprint | num  | 是否允许转载 | 必要   | 1: 允许<br />0: 不允许 |
+| no_disturbance | num | 是否不生成更新推送 | 必要 | 0: 否<br />1: 是，网页在加入合集时提供该选项 |
+| no_reprint | num | 是否禁止转载 | 必要 | 0: 否<br />1: 是 |
 | subtitle | obj  | 字幕信息 | 必要   |      |
 | dolby | num  | 杜比音效 | 必要   | 0: 否(默认)<br />1: 是 |
 | lossless_music | num  | 无损音乐 | 必要   | 0: 否(默认)<br />1: 是 |
@@ -947,11 +1056,24 @@ curl -G 'https://member.bilibili.com/x/vupre/web/tag/recommend' \
 | up_close_reply | bool | 关闭评论 | 必要   |      |
 | up_close_danmu | bool | 关闭弹幕 | 必要   |      |
 | web_os | num  | 平台类型? | 必要   | 3 |
-| is_only_self | 可见性 | 非必要 | 0：公开<br/>1：仅自己可见 |
-| topic_id | 话题id | 非必要 | 可从[查询话题](./upload.md#查询话题)等相关接口获取 |
-| mission_id	 | 任务id | 非必要 | 可从[查询话题](./upload.md#查询话题)等相关接口获取 |
+| is_only_self | num | 可见性 | 非必要 | 0: 公开<br />1: 仅自己可见 |
+| topic_id | num | 话题 ID | 非必要 | 可从[话题搜索](#话题搜索)等相关接口获取 |
+| mission_id | num | 任务 ID | 非必要 | 与所选话题活动对应，参见[检查话题活动](#检查话题活动) |
 | is_360 | num | 是否全景 | 非必要 | -1：非全景<br/>1：全景 |
-| neutral_mark | str | 创作者声明 | 非必要 |  |
+| creation_statement | obj | 创作声明 | 非必要 | `{ "id": 2 }` 表示含虚构演绎内容，枚举见[投稿预置信息](#获取投稿预置信息) |
+| watermark | obj | 本稿件水印设置 | 非必要 | `{ "state": 0 }` 关闭，`{ "state": 1 }` 开启 |
+| dtime | num | 定时发布时间 | 非必要 | UNIX 秒时间戳，范围取 `pre.data.myinfo.deftime` 至 `deftime_end` |
+| season_id | num | 合集 ID | 非必要 | 不加入合集时传 0 |
+| section_id | num | 合集小节 ID | 非必要 | 不加入合集时传 0 |
+
+注:
+
+- 不选择创作声明时省略 `creation_statement`。传 `id=-1` 是明确选择“内容无需标注”，与省略字段不同。
+- 旧 `neutral_mark` 字符串已失效，传旧格式返回 21517“选择的创作声明不存在”。
+- `watermark` 只控制本稿件；传 `state=0` 后读回为关闭，账号默认水印设置不变。
+- `cover`、`cover43` 分别传入两种比例的封面 URL，可分别调用[上传封面](#上传封面)取得。
+- 定时投稿时 `is_only_self` 仍传 0，发布时间由 `dtime` 单独控制。
+- 提交成功后可按返回的 `aid` 调用[稿件编辑信息](videos.md#获取稿件编辑信息)，核对两张封面、活动、定时、水印及合集状态。
 
 `videos` 数组中的对象:
 
@@ -1089,27 +1211,27 @@ curl -X POST --url "https://member.bilibili.com/x/vu/web/add/v3" \
 | aid    | num  | 视频 ID  | 必要   |      |
 | videos | array | 视频信息 | 必要   | 若为分 P 视频, 请注意数组元素顺序 |
 | title  | str  | 视频标题 | 必要   | 最多 80 字 |
-| cover  | str  | 视频封面 URL | 非必要   | 如果不传会自动取封面，参见[上传视频封面](#上传视频封面) |
+| cover  | str  | 视频封面 URL | 非必要   | 如果不传会自动取封面，参见[上传封面](#上传封面) |
 | cover43 | str  | 视频封面 URL (比例为 4:3) | 非必要   | 可为空 |
-| copyright | num  | 1: 自制<br />2: 转载 | 必要   |      |
+| copyright | num | 版权类型 | 必要 | 1: 自制<br />2: 转载<br />3: 未勾选自制声明 |
 | tid    | num  | 分区 ID | 必要   |      |
 | tag    | str  | 视频标签 | 必要   | 多个标签用 `,` 分隔, 最多 10 个 |
 | desc_format_id | num  | 简介格式 ID? | 必要   | 9999: 纯文本 |
 | desc   | str  | 视频简介 | 非必要   | 最多 2000 字 |
-| desc_v2   | str  | 视频简介额外信息 | 非必要   | 比如有艾特操作时传递，见上传视频 |
+| desc_v2   | array | 视频简介额外信息 | 非必要   | 比如有艾特操作时传递，见上传视频 |
 | recreate | num  | 是否允许二创 | 必要   | -1: 允许(默认)<br />1: 不允许 |
 | dynamic | str  | 粉丝动态 | 必要   |      |
 | interactive | num  | 互动视频? | 必要   | 0: 否 |
 | act_reserve_create | num  | 活动预约? | 必要   | 0: 否 |
-| no_disturbance | num  | 是否推送到动态 | 必要   | 0：不推送<br />1：推送 |
-| no_reprint | num  | 是否允许转载 | 必要   | 1: 允许<br />0: 不允许 |
+| no_disturbance | num | 是否不生成更新推送 | 必要 | 0: 否<br />1: 是 |
+| no_reprint | num | 是否禁止转载 | 必要 | 0: 否<br />1: 是 |
 | subtitle | obj | 字幕信息 | 必要   |      |
 | web_os | num  | 操作系统 | 必要   | 1: Web |
 | mission_id | num  | 任务 ID | 非必要   | 0: 无 |
 | csrf   | str  | CSRF Token (位于 Cookie 中 bili_jct) | 必要   |      |
 | new_web_edit | num  | 未知 | 非必要   | 未知 |
 | is_360 | num | 是否全景 | 非必要 | -1：非全景<br/>1：全景 |
-| is_only_self | 可见性 | 非必要 | 0：公开<br/>1：仅自己可见 |
+| is_only_self | num | 可见性 | 非必要 | 0: 公开<br />1: 仅自己可见 |
 
 
 **JSON回复:**
@@ -1313,6 +1435,8 @@ curl -X POST --url "https://member.bilibili.com/x/vu/web/add/v3" \
 
 注: 目前看来上传的视频文件似乎不会自动删除, 而且似乎不是视频也可以上传的样子, 但是下载认证字段有效期只有 5 天
 
+后续 UPOS 初始化、分片和合并请求使用 `X-Upos-Auth` 鉴权，无需向上传 CDN 发送账号 Cookie。上传完成后还需调用[投递视频稿件（Web）](#投递视频稿件web)才算投稿。
+
 ### 上传流程
 
 整个上传流程较为复杂, 详细参见[Demo](#Demo)
@@ -1400,7 +1524,7 @@ curl -G "https://member.bilibili.com/preupload" \
 ```json
 {
   "OK": 1,
-  "auth": "ak=1494471752&cdn=%2F%2Fupos-cs-upcdntxa.bilivideo.com&os=upos&sign=b6c5cc520a281200906aea97e190b098&timestamp=1722155211.324&uid=616368979&uip=108.181.24.77&uport=52096&use_dqp=0",
+  "auth": "ak=1494471752&cdn=%2F%2Fupos-cs-upcdntxa.bilivideo.com&os=upos&sign=b6c5cc520a281200906aea97e190b098&timestamp=1722155211.324&uid=616368979&uip=0.0.0.0&uport=0&use_dqp=0",
   "biz_id": 500001630152509,
   "chunk_retry": 10,
   "chunk_retry_delay": 3,
@@ -1414,7 +1538,7 @@ curl -G "https://member.bilibili.com/preupload" \
   "put_query": "os=upos&profile=ugcfx%2Fbup",
   "threads": 3,
   "timeout": 1200,
-  "uip": "108.181.24.77",
+  "uip": "0.0.0.0",
   "upos_uri": "upos://ugcfx2lf/n240728ad1p51if4g3ke4s3o95sznogy.mkv"
 }
 ```
@@ -1423,8 +1547,8 @@ curl -G "https://member.bilibili.com/preupload" \
 
 #### 上传视频元数据
 
-> URL 拼接格式: `"https"` + [上一个接口](#获取上传元数据-预上传)的`endpoint` + 上一个接口的`upos_uri`去掉协议名  
-> JavaScript 模板字符串: `https:${preupload.endpoint}/${endpoint.upos_uri.replace("upos://", "")}`
+> URL 拼接格式: `"https:"` + [上一个接口](#获取上传元数据-预上传)的 `endpoint` + `"/"` + 上一个接口的 `upos_uri` 去掉协议名
+> JavaScript 模板字符串: `https:${preupload.endpoint}/${preupload.upos_uri.replace("upos://", "")}`
 
 *请求方式: POST*
 
@@ -1455,7 +1579,7 @@ curl -G "https://member.bilibili.com/preupload" \
 **示例:**
 
 假设上一接口返回的
-`auth` 为 `ak=1494471752&cdn=%2F%2Fupos-cs-upcdntxa.bilivideo.com&os=upos&sign=4004b35628e982bc90b59cec86f8c441&timestamp=1722173443.298&uid=616368979&uip=104.28.153.18&uport=44282&use_dqp=0`,
+`auth` 为 `ak=1494471752&cdn=%2F%2Fupos-cs-upcdntxa.bilivideo.com&os=upos&sign=4004b35628e982bc90b59cec86f8c441&timestamp=1722173443.298&uid=616368979&uip=0.0.0.0&uport=0&use_dqp=0`,
 `biz_id` 为`500001630454700`,
 `endpoint` 为 `//upos-cs-upcdntxa.bilivideo.com`,
 `upos_uri` 为 `upos://ugcfx2lf/n240728adhejliqv0kqyg2s5n6huv501.mkv`,
@@ -1463,15 +1587,14 @@ curl -G "https://member.bilibili.com/preupload" \
 视频文件大小为 `305333744` 字节.
 
 ```shell
-curl -X POST --url "https://upos-cs-upcdntxa.bilivideo.com/ugcfx2lf/n240728adhejliqv0kqyg2s5n6huv501.mkv` \
+curl -X POST --url "https://upos-cs-upcdntxa.bilivideo.com/ugcfx2lf/n240728adhejliqv0kqyg2s5n6huv501.mkv" \
 --url-query "uploads=" \
 --url-query "output=json" \
 --url-query "profile=ugcfx/bup" \
 --url-query "filesize=305333744" \
 --url-query "partsize=10485760" \
 --url-query "biz_id=500001630454700" \
--H "X-Upos-Auth: ak=1494471752&cdn=%2F%2Fupos-cs-upcdntxa.bilivideo.com&os=upos&sign=4004b35628e982bc90b59cec86f8c441&timestamp=1722173443.298&uid=616368979&uip=104.28.153.18&uport=44282&use_dqp=0" \
--b "SESSDATA=xxxxxxxxx"
+-H "X-Upos-Auth: ak=1494471752&cdn=%2F%2Fupos-cs-upcdntxa.bilivideo.com&os=upos&sign=4004b35628e982bc90b59cec86f8c441&timestamp=1722173443.298&uid=616368979&uip=0.0.0.0&uport=0&use_dqp=0"
 ```
 
 <details>
@@ -1522,7 +1645,7 @@ MULTIPART_PUT_SUCCESS
 **示例:**
 
 假设上上一接口返回的
-`auth` 为 `ak=1494471752&cdn=%2F%2Fupos-cs-upcdntxa.bilivideo.com&os=upos&sign=911dd5b995895805d785aa607b4153b6&timestamp=1722212776.333&uid=616368979&uip=108.181.24.77&uport=36044&use_dqp=0`,
+`auth` 为 `ak=1494471752&cdn=%2F%2Fupos-cs-upcdntxa.bilivideo.com&os=upos&sign=911dd5b995895805d785aa607b4153b6&timestamp=1722212776.333&uid=616368979&uip=0.0.0.0&uport=0&use_dqp=0`,
 `endpoint` 为 `//upos-cs-upcdntxa.bilivideo.com`,
 `upos_uri` 为 `upos://ugcfx2lf/n240729ad7gxi43yaoml312h2nbt2pnf.xz`,
 `chunk_size` 为 `10485760`.
@@ -1549,10 +1672,9 @@ curl -X PUT --url "https://upos-cs-upcdntxa.bilivideo.com/ugcfx2lf/n240729ad7gxi
 --url-query "start=0" \
 --url-query "end=10485760" \
 --url-query "total=278255704" \
--H "X-Upos-Auth: ak=1494471752&cdn=%2F%2Fupos-cs-upcdntxa.bilivideo.com&os=upos&sign=911dd5b995895805d785aa607b4153b6&timestamp=1722212776.333&uid=616368979&uip=108.181.24.77&uport=36044&use_dqp=0" \
+-H "X-Upos-Auth: ak=1494471752&cdn=%2F%2Fupos-cs-upcdntxa.bilivideo.com&os=upos&sign=911dd5b995895805d785aa607b4153b6&timestamp=1722212776.333&uid=616368979&uip=0.0.0.0&uport=0&use_dqp=0" \
 -H "Content-Type: application/octet-stream" \
---data-binary @part01.tar.xz \
--b "SESSDATA=xxxxxxxxx"
+--data-binary @part01.tar.xz
 ```
 
 <details>
@@ -1608,12 +1730,19 @@ MULTIPART_PUT_SUCCESS
 
 **JSON回复:**
 
-与 [上上一个接口](#上传视频元数据) 相同
+根对象:
+
+| 字段 | 类型 | 内容 | 备注 |
+| ---- | ---- | ---- | ---- |
+| OK | num | 是否成功 | 1: 成功 |
+| location | str | 上传文件路径 | |
+| bucket | str | 空间名? | |
+| key | str | 文件名? | |
 
 **示例:**
 
 假设上上上一接口返回的
-`auth` 为 `ak=1494471752&cdn=%2F%2Fupos-cs-upcdntxa.bilivideo.com&os=upos&sign=911dd5b995895805d785aa607b4153b6&timestamp=1722212776.333&uid=616368979&uip=108.181.24.77&uport=36044&use_dqp=0`,
+`auth` 为 `ak=1494471752&cdn=%2F%2Fupos-cs-upcdntxa.bilivideo.com&os=upos&sign=911dd5b995895805d785aa607b4153b6&timestamp=1722212776.333&uid=616368979&uip=0.0.0.0&uport=0&use_dqp=0`,
 `endpoint` 为 `//upos-cs-upcdntxa.bilivideo.com`,
 `upos_uri` 为 `upos://ugcfx2lf/n240729ad7gxi43yaoml312h2nbt2pnf.xz`,
 `biz_id` 为 `500001630826789`.
@@ -1626,16 +1755,15 @@ MULTIPART_PUT_SUCCESS
 假设您已经全部上传完毕, 共上传 `27` 个分块, 本次请求上传的的内容存放在 `body.json` 文件中.
 
 ```shell
-curl -X PUT --url "https://upos-cs-upcdntxa.bilivideo.com/ugcfx2lf/n240729ad7gxi43yaoml312h2nbt2pnf.xz" \
+curl -X POST --url "https://upos-cs-upcdntxa.bilivideo.com/ugcfx2lf/n240729ad7gxi43yaoml312h2nbt2pnf.xz" \
 --url-query "output=json" \
 --url-query "name=20240724-remove-linux-then-install.tar.xz" \
 --url-query "profile=ugcfx%2Fbup" \
 --url-query "uploadId=8130090a-16f7-4fe6-8a29-198f5abce913" \
 --url-query "biz_id=500001630826789" \
--H "X-Upos-Auth: ak=1494471752&cdn=%2F%2Fupos-cs-upcdntxa.bilivideo.com&os=upos&sign=911dd5b995895805d785aa607b4153b6&timestamp=1722212776.333&uid=616368979&uip=108.181.24.77&uport=36044&use_dqp=0" \
+-H "X-Upos-Auth: ak=1494471752&cdn=%2F%2Fupos-cs-upcdntxa.bilivideo.com&os=upos&sign=911dd5b995895805d785aa607b4153b6&timestamp=1722212776.333&uid=616368979&uip=0.0.0.0&uport=0&use_dqp=0" \
 -H "Content-Type: application/json" \
---data-binary @body.json \
--b "SESSDATA=xxxxxxxxx"
+--data-binary @body.json
 ```
 
 <details>
@@ -1667,7 +1795,7 @@ HTTP/1.1 403 Forbidden
 Bili-Trace-Id: 3e3f2db61366adbf
 Server: upos@hcsgw@jscs-bvc-hcsgw-public-02
 X-Bili-Trace-Id: 0d8ca1af6d3510253e3f2db61366adbf
-X-Upos-Auth: AUTH_TS_GT_5DAY AUTH=ak=1494471752&cdn=%2F%2Fupos-cs-upcdntxa.bilivideo.com&os=upos&sign=911dd5b995895805d785aa607b4153b6&timestamp=1722212776.333&uid=616368979&uip=108.181.24.77&uport=36044&use_dqp=0 Now=1722662669 DURATION=449893
+X-Upos-Auth: AUTH_TS_GT_5DAY AUTH=ak=1494471752&cdn=%2F%2Fupos-cs-upcdntxa.bilivideo.com&os=upos&sign=911dd5b995895805d785aa607b4153b6&timestamp=1722212776.333&uid=616368979&uip=0.0.0.0&uport=0&use_dqp=0 Now=1722662669 DURATION=449893
 Content-Length: 0
 Connection: keep-alive
 Date: Sat, 03 Aug 2024 05:24:29 GMT
@@ -1682,12 +1810,12 @@ EO-Cache-Status: MISS
 **示例:**
 
 假设请求上一接口时的 URL 为 `https://upos-cs-upcdntxa.bilivideo.com/ugcfx2lf/n240729ad7gxi43yaoml312h2nbt2pnf.xz`,
-请求头的 `X-Upos-Auth` 为 `ak=1494471752&cdn=%2F%2Fupos-cs-upcdntxa.bilivideo.com&os=upos&sign=911dd5b995895805d785aa607b4153b6&timestamp=1722212776.333&uid=616368979&uip=108.181.24.77&uport=36044&use_dqp=0`,
+请求头的 `X-Upos-Auth` 为 `ak=1494471752&cdn=%2F%2Fupos-cs-upcdntxa.bilivideo.com&os=upos&sign=911dd5b995895805d785aa607b4153b6&timestamp=1722212776.333&uid=616368979&uip=0.0.0.0&uport=0&use_dqp=0`,
 您想要下载到运行目录下的 `file.tar.xz` 文件
 
 ```shell
 curl -G "https://upos-cs-upcdntxa.bilivideo.com/ugcfx2lf/n240729ad7gxi43yaoml312h2nbt2pnf.xz" \
--H "X-Upos-Auth: ak=1494471752&cdn=%2F%2Fupos-cs-upcdntxa.bilivideo.com&os=upos&sign=911dd5b995895805d785aa607b4153b6&timestamp=1722212776.333&uid=616368979&uip=108.181.24.77&uport=36044&use_dqp=0" \
+-H "X-Upos-Auth: ak=1494471752&cdn=%2F%2Fupos-cs-upcdntxa.bilivideo.com&os=upos&sign=911dd5b995895805d785aa607b4153b6&timestamp=1722212776.333&uid=616368979&uip=0.0.0.0&uport=0&use_dqp=0" \
 --output file.tar.xz
 ```
 
